@@ -77,8 +77,8 @@ namespace Colorbot
 
         static void Process()
         {
-            int[] upper = { 255, 255, 255 };
-            int[] lower = { 0, 0, 0 };
+            int[] upper = [255, 255, 255];
+            int[] lower = [0, 0, 0];
 
             Bitmap img = new Bitmap(CAM_FOV, CAM_FOV);
             Graphics g = Graphics.FromImage(img);
