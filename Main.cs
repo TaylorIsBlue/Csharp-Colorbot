@@ -3,7 +3,10 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
-
+using AForge.Imaging;
+using AForge.Imaging.Filters;
+using AForge;
+using System.Threading;
 
 namespace Colorbot
 {
@@ -16,10 +19,12 @@ namespace Colorbot
         public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, int dwExtraInfo);
 
         static Config config; // Dynamic configuration
+        
 
-        static void Main(string[] args)
+        static void main(string[] args)
         {
-            LoadConfig(); // Load configuration from INI file
+            if(config == null) throw new ArgumentException("Config is null");
+            config.LoadConfig(); // Load configuration from INI file
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -50,15 +55,15 @@ namespace Colorbot
                     {
                         while (GetAsyncKeyState(Convert.ToInt32(config.AimKey)) < 0)
                         {
-                            if (!AIMtoggled)
+                            if (!config.Toggled)
                             {
-                                AIMtoggled = true;
-                                while (AIMtoggled)
+                                config.Toggled = true;
+                                while (config.Toggled)
                                 {
                                     Process();
                                     if (GetAsyncKeyState(Convert.ToInt32(config.AimKey)) >= 0)
                                     {
-                                        AIMtoggled = false;
+                                        config.Toggled = false;
                                     }
                                 }
                             }
@@ -66,7 +71,7 @@ namespace Colorbot
                     }
                     else if (config.SwitchMode == 1)
                     {
-                        AIMtoggled = !AIMtoggled;
+                        config.Toggled = !config.Toggled;
                         Thread.Sleep(100);
                     }
                 }
@@ -74,175 +79,165 @@ namespace Colorbot
                 Thread.Sleep(100);
             }
         }
-
+        /* Do i understand ANY of this AI code that GPT made.. no. so we are not going to use it! instead, i'm gonna try to make the colorbot from scratch. 😭
         static void Process()
         {
-            int[] upper = [255, 255, 255];
-            int[] lower = [0, 0, 0];
-
-            Bitmap img = new Bitmap(CAM_FOV, CAM_FOV);
-            Graphics g = Graphics.FromImage(img);
-            g.CopyFromScreen(new Point(Cursor.Position.X - CAM_FOV / 2, Cursor.Position.Y - CAM_FOV / 2), Point.Empty, img.Size);
-
-            Bitmap hsv = new Bitmap(img.Width, img.Height);
-            Bitmap mask = new Bitmap(hsv.Width, hsv.Height);
-            Bitmap dilated = new Bitmap(mask.Width, mask.Height);
-            Bitmap thresh = new Bitmap(dilated.Width, dilated.Height);
-            Bitmap contour = new Bitmap(thresh.Width, thresh.Height);
-
-            for (int i = 0; i < img.Width; i++)
+            try
             {
-                for (int j = 0; j < img.Height; j++)
+                // Capture screenshot
+                Bitmap img = new Bitmap(screenshot.Width, screenshot.Height);
+                Graphics g = Graphics.FromImage(img);
+                g.CopyFromScreen(new Point(Cursor.Position.X - screenshot.Width / 2, Cursor.Position.Y - screenshot.Height / 2), Point.Empty, img.Size);
+
+                // Convert image to HSV format
+                Bitmap hsv = ConvertToHSV(img);
+
+                // Apply mask based on color ranges
+                Bitmap mask = ApplyColorMask(hsv, lowerColor, upperColor);
+
+                // Dilate the mask
+                Bitmap dilated = Dilate(mask);
+
+                // Thresholding
+                Bitmap thresh = Threshold(dilated, 60);
+
+                // Find contours
+                List<Point> contours = FindContours(thresh);
+
+                if (contours.Count != 0)
                 {
-                    Color pixel = img.GetPixel(i, j);
-                    int r = pixel.R;
-                    int gVal = pixel.G;
-                    int b = pixel.B;
+                    // Find the contour with the maximum area
+                    List<Point> maxContour = contours.OrderByDescending(p => p.Y).ToList();
 
-                    int max = Math.Max(r, Math.Max(gVal, b));
-                    int min = Math.Min(r, Math.Min(gVal, b));
+                    // Find the topmost point in the max contour
+                    Point topmost = maxContour.OrderBy(p => p.Y).First();
 
-                    int h = 0;
-                    if (max == r && gVal >= b)
-                    {
-                        h = (int)(60 * (gVal - b) / (max - min));
-                    }
-                    else if (max == r && gVal < b)
-                    {
-                        h = (int)(60 * (gVal - b) / (max - min) + 360);
-                    }
-                    else if (max == gVal)
-                    {
-                        h = (int)(60 * (b - r) / (max - min) + 120);
-                    }
-                    else if (max == b)
-                    {
-                        h = (int)(60 * (r - gVal) / (max - min) + 240);
-                    }
+                    // Calculate the aiming position
+                    int x = topmost.X - center + AIM_OFFSET_X;
+                    int y = topmost.Y - center + AIM_OFFSET_Y;
 
-                    int s = max == 0 ? 0 : (max - min) / max * 255;
-                    int v = max;
+                    double distance = Math.Sqrt(x * x + y * y);
 
-                    hsv.SetPixel(i, j, Color.FromArgb(h, s, v));
-                }
-            }
+                    if (distance <= AIM_FOV)
+                    {
+                        int x2 = (int)(x * AIM_SPEED_X);
+                        int y2 = (int)(y * AIM_SPEED_Y);
 
-            for (int i = 0; i < hsv.Width; i++)
-            {
-                for (int j = 0; j < hsv.Height; j++)
-                {
-                    Color pixel = hsv.GetPixel(i, j);
-                    int h = pixel.R;
-                    int s = pixel.G;
-                    int v = pixel.B;
+                        // Move the mouse towards the position
+                        mouse_event(0x0001, x2, y2, 0, 0);
 
-                    if (h >= lower[0] && h <= upper[0] && s >= lower[1] && s <= upper[1] && v >= lower[2] && v <= upper[2])
-                    {
-                        mask.SetPixel(i, j, Color.White);
-                    }
-                    else
-                    {
-                        mask.SetPixel(i, j, Color.Black);
-                    }
-                }
-            }
-
-            for (int i = 0; i < mask.Width; i++)
-            {
-                for (int j = 0; j < mask.Height; j++)
-                {
-                    if (mask.GetPixel(i, j).R == 255)
-                    {
-                        dilated.SetPixel(i, j, Color.White);
-                    }
-                    else
-                    {
-                        dilated.SetPixel(i, j, Color.Black);
-                    }
-                }
-            }
-
-            for (int i = 0; i < dilated.Width; i++)
-            {
-                for (int j = 0; j < dilated.Height; j++)
-                {
-                    if (dilated.GetPixel(i, j).R >= 60)
-                    {
-                        thresh.SetPixel(i, j, Color.White);
-                    }
-                    else
-                    {
-                        thresh.SetPixel(i, j, Color.Black);
-                    }
-                }
-            }
-
-            int maxArea = 0;
-            int maxIndex = -1;
-
-            for (int i = 0; i < contour.Width; i++)
-            {
-                for (int j = 0; j < contour.Height; j++)
-                {
-                    if (thresh.GetPixel(i, j).R == 255)
-                    {
-                        int area = FloodFill(contour, i, j);
-                        if (area > maxArea)
+                        // Triggerbot functionality
+                        if (TRIGGERBOT != "disabled" && distance <= TRIGGERBOT_DISTANCE)
                         {
-                            maxArea = area;
-                            maxIndex = i;
-                        }
-                    }
-                }
-            }
-
-            if (maxIndex != -1)
-            {
-                int x = maxIndex - CAM_FOV / 2 + AIM_OFFSET_X;
-                int y = maxArea - CAM_FOV / 2 + AIM_OFFSET_Y;
-                double distance = Math.Sqrt(x * x + y * y);
-                if (distance <= AIM_FOV)
-                {
-                    int x2 = (int)(x * AIM_SPEED_X);
-                    int y2 = (int)(y * AIM_SPEED_Y);
-                    mouse_event(0x0001, x2, y2, 0, 0);
-                    if (TRIGGERBOT != "disabled" && distance <= TRIGGERBOT_DISTANCE)
-                    {
-                        if (TRIGGERBOT_DELAY != 0)
-                        {
-                            if (!shooting)
+                            if (TRIGGERBOT_DELAY != 0 && !shooting)
                             {
                                 shooting = true;
-                                Thread.Sleep(TRIGGERBOT_DELAY);
+                                Thread delayThread = new Thread(() => DelayedAim());
+                                delayThread.Start();
+                            }
+                            else
+                            {
                                 mouse_event(0x0002, x2, y2, 0, 0);
                                 clicks++;
-                                shooting = false;
+
+                                // Start a thread to stop shooting after a short delay
+                                Thread stopThread = new Thread(() => StopShooting());
+                                stopThread.Start();
                             }
-                        }
-                        else
-                        {
-                            mouse_event(0x0002, x2, y2, 0, 0);
-                            clicks++;
                         }
                     }
                 }
             }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error in processing: " + e.Message);
+            }
         }
 
-        static int FloodFill(Bitmap image, int x, int y)
+
+        static List<System.Drawing.Point> FindContours(Bitmap image)
         {
-            int area = 0;
-            if (x >= 0 && x < image.Width && y >= 0 && y < image.Height && image.GetPixel(x, y).R == 255)
+            // Convert the image to grayscale
+            Bitmap grayImage = Grayscale.CommonAlgorithms.BT709.Apply(image);
+
+            // Use the Canny edge detector for edge detection
+            CannyEdgeDetector edgeDetector = new CannyEdgeDetector();
+            Bitmap edges = edgeDetector.Apply(grayImage);
+
+            // Use the BlobCounter to find blobs (contours) in the image
+            BlobCounter blobCounter = new BlobCounter();
+            blobCounter.ProcessImage(edges);
+            Blob[] blobs = blobCounter.GetObjectsInformation();
+
+            // Extract points from the blobs
+            List<System.Drawing.Point> contours = new List<System.Drawing.Point>();
+
+            foreach (Blob blob in blobs)
             {
-                image.SetPixel(x, y, Color.Black);
-                area++;
-                area += FloodFill(image, x - 1, y);
-                area += FloodFill(image, x + 1, y);
-                area += FloodFill(image, x, y - 1);
-                area += FloodFill(image, x, y + 1);
+                List<IntPoint> edgePoints = blobCounter.GetBlobsEdgePoints(blob);
+                foreach (IntPoint point in edgePoints)
+                {
+                    contours.Add(new System.Drawing.Point(point.X, point.Y));
+                }
             }
-            return area;
+
+            return contours;
         }
+        static Bitmap ConvertToHSV(Bitmap image)
+        {
+            // Convert the image to grayscale
+            Bitmap grayImage = Grayscale.CommonAlgorithms.BT709.Apply(image);
+
+            // Create an instance of the ColorFiltering class
+            ColorFiltering colorFilter = new ColorFiltering();
+
+            // Set the filter's color
+            colorFilter.Red = new IntRange(0, 255);
+            colorFilter.Green = new IntRange(0, 255);
+            colorFilter.Blue = new IntRange(0, 255);
+
+            // Apply the color filter
+            Bitmap filteredImage = colorFilter.Apply(grayImage);
+
+            // Create an instance of the HSLFiltering class
+            HSLFiltering hslFilter = new HSLFiltering();
+
+            // Set the filter's color space
+            hslFilter.Hue = new IntRange(0, 360);
+            hslFilter.Saturation = new AForge.Range(0, 1);
+            hslFilter.Luminance = new AForge.Range(0, 1);
+
+            // Apply the HSL filter
+            Bitmap hsvImage = hslFilter.Apply(filteredImage);
+
+            return hsvImage;
+        }
+
+        static Bitmap ApplyColorMask(Bitmap hsvImage)
+        {
+            // Create an instance of the HueModifier class
+            HueModifier hueModifier = new HueModifier();
+
+            // Set the hue range to keep
+            hueModifier.Hue = new;
+
+            // Apply the hue modification
+            Bitmap hueModifiedImage = hueModifier.Apply(hsvImage);
+
+            return hueModifiedImage;
+        }
+
+        static Bitmap Dilate(Bitmap image)
+        {
+            // Create an instance of the Dilatation filter
+            Dilatation dilatationFilter = new Dilatation();
+
+            // Apply the dilatation filter
+            Bitmap dilatedImage = dilatationFilter.Apply(image);
+
+            return dilatedImage;
+        }
+        */
     }
 
 }

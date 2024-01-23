@@ -34,97 +34,67 @@ namespace Csharp_ColorBot.Classes
         public int Clicks { get; set; } = 0;
         public bool Shooting { get; set; } = false;
 
-        public void LoadConfig(Config cfg)
+        public void LoadConfig()
         {
             FileIniDataParser parser = new FileIniDataParser();
             IniData data = parser.ReadFile("config.ini"); //read it duh lol
 
-            cfg = new Config
-            {
-                AimKey = data["Config"]["AIM_KEY"],
-                BindMode = data["Config"]["BINDMODE"],
-                SwitchModeKey = data["Config"]["SWITCH_MODE_KEY"],
-                UpdateKey = data["Config"]["UPDATE_KEY"],
-                FovKeyUp = data["Config"]["FOV_KEY_UP"],
-                FovKeyDown = data["Config"]["FOV_KEY_DOWN"],
-                CamFov = int.Parse(data["Config"]["CAM_FOV"]),
-                AimFov = int.Parse(data["Config"]["AIM_FOV"]),
-                AimOffsetY = int.Parse(data["Config"]["AIM_OFFSET_Y"]),
-                AimOffsetX = int.Parse(data["Config"]["AIM_OFFSET_X"]),
-                AimSpeedX = float.Parse(data["Config"]["AIM_SPEED_X"]),
-                AimSpeedY = float.Parse(data["Config"]["AIM_SPEED_Y"]),
-                Triggerbot = bool.Parse(data["Config"]["TRIGGERBOT"]),
-                TriggerbotDelay = int.Parse(data["Config"]["TRIGGERBOT_DELAY"]),
-                TriggerbotDistance = int.Parse(data["Config"]["TRIGGERBOT_DISTANCE"]),
-                Smoothening = bool.Parse(data["Config"]["SMOOTHENING"]),
-                SmootheningFactor = float.Parse(data["Config"]["SMOOTH_FACTOR"]),
-                upperColor = ParseHsvColor(data["Config"]["UPPER_COLOR"]),
-                lowerColor = ParseHsvColor(data["Config"]["LOWER_COLOR"]),
-                Color = data["Config"]["COLOR"]
-            };
+            AimKey = data["Config"]["AIM_KEY"];
+            BindMode = data["Config"]["BINDMODE"];
+            SwitchModeKey = data["Config"]["SWITCH_MODE_KEY"];
+            UpdateKey = data["Config"]["UPDATE_KEY"];
+            FovKeyUp = data["Config"]["FOV_KEY_UP"];
+            FovKeyDown = data["Config"]["FOV_KEY_DOWN"];
+            CamFov = int.Parse(data["Config"]["CAM_FOV"]);
+            AimFov = int.Parse(data["Config"]["AIM_FOV"]);
+            AimOffsetY = int.Parse(data["Config"]["AIM_OFFSET_Y"]);
+            AimOffsetX = int.Parse(data["Config"]["AIM_OFFSET_X"]);
+            AimSpeedX = float.Parse(data["Config"]["AIM_SPEED_X"]);
+            AimSpeedY = float.Parse(data["Config"]["AIM_SPEED_Y"]);
+            Triggerbot = bool.Parse(data["Config"]["TRIGGERBOT"]);
+            TriggerbotDelay = int.Parse(data["Config"]["TRIGGERBOT_DELAY"]);
+            TriggerbotDistance = int.Parse(data["Config"]["TRIGGERBOT_DISTANCE"]);
+            Smoothening = bool.Parse(data["Config"]["SMOOTHENING"]);
+            SmootheningFactor = float.Parse(data["Config"]["SMOOTH_FACTOR"]);
+            upperColor = ParseHsvColor(data["Config"]["UPPER_COLOR"]);
+            lowerColor = ParseHsvColor(data["Config"]["LOWER_COLOR"]);
+            Color = data["Config"]["COLOR"];
         }
-        // There is DEFINITElY A BETTER WAY TO DO THIS?!
         public void SetColorConfig(string color)
         {
             color = color.ToLower();
-
-            if (color == "yellow")
+            if (ColorMappings.ContainsKey(color))
             {
-                upperColor = ParseHsvColor("38,255,203");
-                lowerColor = ParseHsvColor("30,255,201");
+                upperColor = ParseHsvColor(ColorMappings[color].Item1); // this is a tuple, so it's a list of two items, the first item is the upper color, the second is the lower color
+                lowerColor = ParseHsvColor(ColorMappings[color].Item2); // parse it to be an HSV color, which is a class in the other file.
             }
-            else if (color == "blue")
+            else if(color == "custom")
             {
-                upperColor = ParseHsvColor("123,255,217");
-                lowerColor = ParseHsvColor("113,206,189");
-            }
-            else if (color == "pink" || color == "magenta" || color == "purple")
-            {
-                upperColor = ParseHsvColor("150,255,201");
-                lowerColor = ParseHsvColor("150,255,200");
-            }
-            else if (color == "green")
-            {
-                upperColor = ParseHsvColor("60,255,201");
-                lowerColor = ParseHsvColor("60,255,201");
-            }
-            else if (color == "cyan")
-            {
-                upperColor = ParseHsvColor("90,255,201");
-                lowerColor = ParseHsvColor("90,255,201");
-            }
-            else if (color == "red")
-            {
-                upperColor = ParseHsvColor("0,255,201");
-                lowerColor = ParseHsvColor("0,255,201");
-            }
-            else if (color == "custom")
-            {
-                upperColor = ParseHsvColor("255,255,255"); // Update with your custom values
-                lowerColor = ParseHsvColor("0,0,0");       // Update with your custom values
-            }
-            else if (color == "0000ff")
-            {
-                upperColor = ParseHsvColor("123,255,255");
-                lowerColor = ParseHsvColor("120,147,69");
-            }
-            else if (color == "aimblox")
-            {
-                upperColor = ParseHsvColor("4,225,206");
-                lowerColor = ParseHsvColor("0,175,119");
-            }
-            else if (color == "black")
-            {
-                upperColor = ParseHsvColor("0,0,0");
-                lowerColor = ParseHsvColor("0,0,0");
-            }
-            else
+                upperColor = ParseHsvColor("255,255,255");
+                
+            } else
             {
                 // Default to red if no color is found
                 upperColor = ParseHsvColor("0,255,201");
                 lowerColor = ParseHsvColor("0,255,201");
             }
         }
+
+        private static readonly Dictionary<string, Tuple<string, string>> ColorMappings = new Dictionary<string, Tuple<string, string>> // wooo!!! so much cleaner than the old way....
+        {
+            {"yellow", Tuple.Create("38,255,203", "30,255,201")},
+            {"blue", Tuple.Create("123,255,217", "113,206,189")},
+            {"pink", Tuple.Create("150,255,201", "150,255,200")},
+            {"magenta", Tuple.Create("150,255,201", "150,255,200")},
+            {"purple", Tuple.Create("150,255,201", "150,255,200")},
+            {"green", Tuple.Create("60,255,201", "60,255,201")},
+            {"cyan", Tuple.Create("90,255,201", "90,255,201")},
+            {"red", Tuple.Create("0,255,201", "0,255,201")},
+            {"custom", Tuple.Create("255,255,255", "0,0,0")},
+            {"0000ff", Tuple.Create("123,255,255", "120,147,69")},
+            {"aimblox", Tuple.Create("4,225,206", "0,175,119")},
+            {"black", Tuple.Create("0,0,0", "0,0,0")}
+        };
         public HsvColor ParseHsvColor(string values)
         {
             if (string.IsNullOrWhiteSpace(values))
